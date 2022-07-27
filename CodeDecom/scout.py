@@ -184,6 +184,20 @@ class BranchNavigator(object):
             pass
         insn.record_up_stream(up_stream)
 
+        # Handle enclosing loop
+        for i, (ip_, v) in enumerate(reversed(self.trace_log)):
+            if ip ==  ip_:
+                insn.loop_head_branch = v
+                for inner_ip, inner_v in self.trace_log[len(self.trace_log) - i:]:
+                    inner = self.bools[inner_ip]
+                    inner.enclosing_loop_heads.add(ip)
+                    pass
+                pass
+            elif ip_ in insn.enclosing_loop_heads:
+                # Revisit this instruction because the enclosing loop, not this loop.
+                break
+            pass
+
         self.trace_log.append((ip, insn.bool_value))
         pass
 
@@ -269,7 +283,17 @@ class InsnBool(Insn):
         self.bool_value = True
         # Keep the previous branches reaching this instruction.
         self.up_streams = set()
+        self.loop_head_branch = None
+        self.enclosing_loop_heads = set()
         pass
+
+    def immediate_enclosing_loop_head(self, tracer):
+        for h_ip in self.enclosing_loop_heads:
+            head = tracer._get_insn(h_ip)
+            if len(head.enclosing_loop_heads) + 1 == len(self.enclosing_loop_heads):
+                return h_ip
+            pass
+        return -1
 
     def flip_value(self):
         self.bool_value = not self.bool_value
@@ -512,6 +536,60 @@ class Tracer(object):
             r = func(*args)
             rscout = Scout(self, 1000000, 'return', [r])
             pass
+
+        self._compute_immediate_enclosing_loop_head()
+        pass
+
+    def _first_ip(self):
+        ips = [ip for ip in self.insns.keys() if ip >= 0]
+        ips.sort()
+        return ips[0]
+
+    # The outer most lines of a function have a depth value 0, and
+    # their enclosing_loop_head value will be -1.
+    # The outer most loops have a depth value 1.
+    # Every inner loops have a depath value increased by 1 nested.
+    def _loop_head_depth(self, loop_head_ip):
+        if loop_head_ip == -1:
+            return 0
+        head = self._get_insn(loop_head_ip)
+        return len(head.enclosing_loop_heads) + 1
+
+    def _compute_immediate_enclosing_loop_head(self):
+        to_visit = [(self._first_ip(), -1)]
+        visited_bools = set()
+        while len(to_visit):
+            ip, enclosing_loop_head = to_visit.pop()
+            if ip in visited_bools:
+                continue
+
+            insn = self._get_insn(ip)
+            if isinstance(insn, InsnBool):
+                visited_bools.add(ip)
+                insn.enclosing_loop_head = insn.immediate_enclosing_loop_head(self)
+                if insn.loop_head_branch != None:
+                    inner, sibling = insn.br[0], insn.br[1]
+                    if not insn.loop_head_branch:
+                        inner, sibling = sibling, inner
+                        pass
+                    to_visit.append((inner, ip))
+                    to_visit.append((sibling, insn.immediate_enclosing_loop_head(self)))
+                    continue
+                to_visit.append((insn.br[0], insn.immediate_enclosing_loop_head(self)))
+                to_visit.append((insn.br[1], insn.immediate_enclosing_loop_head(self)))
+                continue
+
+            if hasattr(insn, 'enclosing_loop_head'):
+                if self._loop_head_depth(insn.enclosing_loop_head) <= self._loop_head_depth(enclosing_loop_head):
+                    continue
+                pass
+            insn.enclosing_loop_head = enclosing_loop_head
+            for v_ip in insn.br:
+                if v_ip >= 0:
+                    to_visit.append((v_ip, enclosing_loop_head))
+                    pass
+                pass
+            pass
         pass
 
     def debug_show(self):
@@ -540,19 +618,22 @@ class Tracer(object):
             elif ip < 0:
                 print('%04d: %s %d %s' % (ip, insn.op, -ip - 1, insn.name))
             elif insn.op == '?':
-                print('%04d: ? operands=%s\n\tTrue:%d False:%d' % (ip, repr(insn.opvs), insn.br[0], insn.br[1]))
+                sps = '    ' * self._loop_head_depth(insn.enclosing_loop_head)
+                print('%04d: %s? operands=%s\n\t%sTrue:%d False:%d' % (ip, sps, repr(insn.opvs), sps, insn.br[0], insn.br[1]))
             elif insn.op == '__next__':
-                print('%04d: __next__ operands=%s\n\tHasData:%d Stop:%d' % (ip, repr(insn.opvs), insn.br[0], insn.br[1]))
+                sps = '    ' * self._loop_head_depth(insn.enclosing_loop_head)
+                print('%04d: %s__next__ operands=%s\n\t%sHasData:%d Stop:%d' % (ip, sps, repr(insn.opvs), sps, insn.br[0], insn.br[1]))
             else:
+                sps = '    ' * self._loop_head_depth(insn.enclosing_loop_head)
                 if i < len(insns) - 1:
                     next_ip = insns[i + 1].ip
                 else:
                     next_ip = -1
                     pass
                 if next_ip == insn.br[0]:
-                    print('%04d: %s operands=%s' % (ip, insn.op, repr(insn.opvs)))
+                    print('%04d: %s%s operands=%s' % (ip, sps, insn.op, repr(insn.opvs)))
                 else:
-                    print('%04d: %s operands=%s\n\tgoto %d' % (ip, insn.op, repr(insn.opvs), insn.br[0]))
+                    print('%04d: %s%s operands=%s\n\t%sgoto %d' % (ip, sps, insn.op, repr(insn.opvs), sps, insn.br[0]))
                     pass
                 pass
             i += 1
