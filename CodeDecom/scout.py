@@ -136,6 +136,17 @@ class Scout(object):
         return ScoutIter(self.tracer, ip, '__iter__', [self])
     pass
 
+# Convert operands in the format of Scout to the format of Insn.
+def conv_operands_scout_to_insn(scout):
+    if scout.op == 'call':
+        opnds = scout.operands
+        v = (opnds[0].ip, tuple((a.ip for a in opnds[1])),
+             tuple(((k, v.ip) for k, v in opnds[2].items())))
+    else:
+        v = tuple([op.ip for op in scout.operands])
+        pass
+    return v
+
 class ScoutIter(Scout):
     def __init__(self, tracer, ip, op, operands = None):
         super(ScoutIter, self).__init__(tracer, ip, op, operands)
@@ -193,7 +204,7 @@ class BranchNavigator(object):
                 insn = InsnIter(ip)
                 pass
             self.bools[ip] = insn
-            self.tracer.insns[ip] = insn
+            self.tracer._put_insn(insn)
         else:
             insn = self.bools[ip]
             insn.flip_value()
@@ -302,6 +313,102 @@ class Tracer(object):
         self.ip_consts = {}
         pass
 
+    def _get_insn(self, ip):
+        if ip < 0:
+            if ip not in self.insns:
+                return None
+            return self.insns[ip]
+
+        if (ip // 10 * 10) not in self.insns:
+            return None
+        insn = self.insns[ip // 10 * 10]
+        if isinstance(insn, list):
+            if len(insn) <= (ip % 10):
+                return None
+            insn = insn[ip % 10]
+        else:
+            assert(ip % 10 == 0)
+            pass
+        return insn
+
+    # Convert IP of a Scout to the IP of sub-instructions.
+    #
+    # Some Python syntax may cause several actions with the same IP value.  In other
+    # words, in the point of view of CodeDecom, they are several instructions at the same
+    # location.  We convert IPs of scouts (instructions) into sub-IPs.  So, all
+    # sub-instructions at the same location get an unique location (IP) to distinguish
+    # them.
+    #
+    # A sub-IP is about REAL IP times 10 adding an offset.  The first sub-IP will be IP
+    # times 10.  The second sub-IP will be IP times 10 plus 1.  The N-the sub-IP will be
+    # IP times 10 plus N-1.  So, for every IP, it can have at most 10 sub-instructions.
+    def _conv_sub_ip(self, scout):
+        # Adjust IP for instructions at the same location.  Turn Insns of the same
+        # location into a list.  Always append the new Insn found at the tail.
+        # Assume no the same operator appears in the list more than once.
+        if scout.ip < 0:
+            return
+        scout.ip *= 10
+        ip = scout.ip
+
+        if (self.lasti // 10 * 10) == ip:
+            # More than one instructions at the same location.
+            if isinstance(self.insns[ip], list):
+                for insn in self.insns[ip]:
+                    if insn.op == scout.op and conv_operands_scout_to_insn(scout) in insn.opvs:
+                        # Assume that no operator appears in the list more than once.
+                        scout.ip = insn.ip
+                        return
+                    pass
+                scout.ip += len(self.insns[ip])
+            else:
+                if self.insns[ip].op == scout.op:
+                    # Assume that no operator appears in the list more than once.
+                    return
+                scout.ip += 1
+                pass
+
+            last_insn = self._get_insn(self.lasti)
+            if last_insn.op not in ('?', '__next__'):
+                if last_insn.br[0] >= 0:
+                    scout.ip = last_insn.br[0]
+                    pass
+                pass
+            else:
+                if last_insn.bool_value:
+                    if last_insn.br[0] >= 0:
+                        scout.ip = last_insn.br[0]
+                        pass
+                    pass
+                else:
+                    if last_insn.br[1] >= 0:
+                        scout.ip = last_insn.br[1]
+                    pass
+                pass
+            pass
+        pass
+
+    def _put_insn(self, insn):
+        if insn.ip < 0:
+            self.insns[insn.ip] = insn
+            return
+
+        unadj_ip = insn.ip // 10 * 10
+        if unadj_ip in self.insns:
+            if isinstance(self.insns[unadj_ip], list):
+                assert((insn.ip % 10) == len(self.insns[unadj_ip]))
+                self.insns[unadj_ip].append(insn)
+            else:
+                assert((insn.ip % 10) == 1)
+                self.insns[unadj_ip] = [self.insns[unadj_ip], insn]
+                pass
+            pass
+        else:
+            assert(unadj_ip == insn.ip)
+            self.insns[unadj_ip] = insn
+            pass
+        pass
+
     def get_const_scout(self, v):
         if v in self.consts:
             return self.consts[v]
@@ -313,28 +420,25 @@ class Tracer(object):
         return scout
 
     def found_insn(self, scout):
+        self._conv_sub_ip(scout)
         ip = scout.ip
+
         if scout.op == '?':
             self.do_bool(scout)
         elif scout.op == '__next__':
             self.do_bool(scout)
-        elif ip not in self.insns:
-            self.insns[ip] = Insn(ip, scout.op)
+        elif not self._get_insn(ip):
+            insn = Insn(ip, scout.op)
+            self._put_insn(insn)
             pass
 
-        insn = self.insns[ip]
+        insn = self._get_insn(ip)
         assert(insn.op == scout.op)
-        if scout.op == 'call':
-            opnds = scout.operands
-            v = (opnds[0].ip, tuple((a.ip for a in opnds[1])),
-                 tuple(((k, v.ip) for k, v in opnds[2].items())))
-        else:
-            v = tuple([op.ip for op in scout.operands])
-            pass
+        v = conv_operands_scout_to_insn(scout)
         insn.opvs.add(v)
 
         if ip >= 0 and self.lasti >= 0:
-            last_insn = self.insns[self.lasti]
+            last_insn = self._get_insn(self.lasti)
             last_insn.jump_to(ip)
             pass
         if ip >= 0:
@@ -366,7 +470,7 @@ class Tracer(object):
                 break
             ustream_ip, ustream_v = list(visiting.up_streams)[0]
             guided_values.append((ustream_ip, ustream_v))
-            visiting = self.insns[ustream_ip]
+            visiting = self._get_insn(ustream_ip)
             pass
 
         self.branch_navi = \
@@ -379,7 +483,7 @@ class Tracer(object):
         glob = {}
         for i, vname in enumerate(func.__code__.co_names):
             scout = Scout(self, -2000000 - i, 'global', [])
-            self.insns[scout.ip].name = vname
+            self._get_insn(scout.ip).name = vname
             glob[vname] = scout
             pass
 
@@ -394,7 +498,7 @@ class Tracer(object):
         args = [Scout(self, -1 - i, 'arg', [])
                 for i in range(func.__code__.co_argcount)]
         for i, arg in enumerate(args):
-            self.insns[arg.ip].name = func.__code__.co_varnames[i]
+            self._get_insn(arg.ip).name = func.__code__.co_varnames[i]
             pass
 
         func = self._mock_function(func)
@@ -413,8 +517,20 @@ class Tracer(object):
     def debug_show(self):
         ips = list(self.insns.keys())
         ips.sort()
-        for i, ip in enumerate(ips):
-            insn = self.insns[ip]
+        insns = [self.insns[ip] for ip in ips]
+
+        # Expand embeded lists of Insns.
+        i = 0
+        while i < len(insns):
+            insn = insns[i]
+            if isinstance(insn, list):
+                insns[i:i+1] = insn
+                continue
+            i += 1
+            pass
+
+        for i, insn in enumerate(insns):
+            ip = insn.ip
 
             if ip <= -2000000:
                 print('%04d: %s %s' % (ip, insn.op, insn.name))
@@ -428,8 +544,8 @@ class Tracer(object):
             elif insn.op == '__next__':
                 print('%04d: __next__ operands=%s\n\tHasData:%d Stop:%d' % (ip, repr(insn.opvs), insn.br[0], insn.br[1]))
             else:
-                if i < len(ips) - 1:
-                    next_ip = ips[i + 1]
+                if i < len(insns) - 1:
+                    next_ip = insns[i + 1].ip
                 else:
                     next_ip = -1
                     pass
@@ -439,6 +555,7 @@ class Tracer(object):
                     print('%04d: %s operands=%s\n\tgoto %d' % (ip, insn.op, repr(insn.opvs), insn.br[0]))
                     pass
                 pass
+            i += 1
             pass
         pass
     pass
@@ -456,6 +573,8 @@ def test(a, b):
         elif c < 30:
             tiger()
             d = c * 3 + b * a
+        elif c in (50, 70):
+            d = 7 * c
         else:
             d = 2 * c * 2 + 5 / b / a
             pass
