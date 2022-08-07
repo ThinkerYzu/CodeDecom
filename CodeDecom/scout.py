@@ -11,129 +11,204 @@ class Scout(object):
         pass
 
     def __lt__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '<', [self, other])
+        scout = Scout(self.tracer, ip, '<', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __le__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '<=', [self, other])
+        scout = Scout(self.tracer, ip, '<=', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __eq__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '==', [self, other])
+        scout = Scout(self.tracer, ip, '==', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __ne__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '!=', [self, other])
+        scout = Scout(self.tracer, ip, '!=', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __gt__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '>', [self, other])
+        scout = Scout(self.tracer, ip, '>', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __ge__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '>=', [self, other])
+        scout = Scout(self.tracer, ip, '>=', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __bool__(self):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         scout = Scout(self.tracer, ip, '?', [self])
+        self.tracer.trace_arg_srcs(frame, self)
         return scout.bool_value
 
     def __add__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '+', [self, other])
+        scout = Scout(self.tracer, ip, '+', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __sub__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '-', [self, other])
+        scout = Scout(self.tracer, ip, '-', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __mul__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '*', [self, other])
+        scout = Scout(self.tracer, ip, '*', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __rmul__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '*', [other, self])
+        scout = Scout(self.tracer, ip, '*', [other, self])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __floordiv__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '//', [self, other])
+        scout = Scout(self.tracer, ip, '//', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __truediv__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '/', [self, other])
+        scout = Scout(self.tracer, ip, '/', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __rtruediv__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '/', [other, self])
+        scout = Scout(self.tracer, ip, '/', [other, self])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __and__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '&', [self, other])
+        scout = Scout(self.tracer, ip, '&', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __or__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '|', [self, other])
+        scout = Scout(self.tracer, ip, '|', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __xor__(self, other):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         if not isinstance(other, Scout):
             other = self.tracer.get_const_scout(other)
             pass
-        return Scout(self.tracer, ip, '^', [self, other])
+        scout = Scout(self.tracer, ip, '^', [self, other])
+        self.tracer.trace_arg_srcs(frame, self, other)
+        return scout
 
     def __call__(self, *args, **kws):
-        ip = inspect.stack()[1].frame.f_lasti
-        return Scout(self.tracer, ip, 'call', [self, args, kws])
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
+        scout = Scout(self.tracer, ip, 'call', [self, args, kws])
+        self.tracer.trace_arg_srcs(frame, self, *args, **kws)
+        return scout
 
     def __iter__(self):
-        ip = inspect.stack()[1].frame.f_lasti
-        return ScoutIter(self.tracer, ip, '__iter__', [self])
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
+        scout = ScoutIter(self.tracer, ip, '__iter__', [self])
+        self.tracer.trace_arg_srcs(frame, self)
+        return scout
     pass
 
 # Convert operands in the format of Scout to the format of Insn.
@@ -153,8 +228,11 @@ class ScoutIter(Scout):
         pass
 
     def __next__(self):
-        ip = inspect.stack()[1].frame.f_lasti
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
         scout = Scout(self.tracer, ip, '__next__', [self])
+        self.tracer.trace_arg_srcs(frame, self)
         if not scout.bool_value:
             raise StopIteration
         return scout
@@ -259,6 +337,8 @@ class EnclosingLoopTracer(object):
             self.loop_head_branch = None
             # All loop heads of enclosing loops
             self.enclosing_loop_heads = set()
+
+            self.loop_tree_following = [None, None]
             pass
 
         def immediate_enclosing_loop_head(self, tracer):
@@ -289,6 +369,9 @@ class EnclosingLoopTracer(object):
 
         def is_loop_head(self):
             return self.loop_head_branch != None
+
+        def loop_depth(self, tracer):
+            return tracer._loop_head_depth(self.enclosing_loop_head)
         pass
 
     def __init__(self, *args, **kws):
@@ -308,7 +391,7 @@ class EnclosingLoopTracer(object):
         if loop_head_ip == -1:
             return 0
         head = self._get_insn(loop_head_ip)
-        return len(head.enclosing_loop_heads) + 1
+        return len(head.enclosing_loop_heads)
 
     def _compute_IELH_for_bool(self, insn, to_visit):
         insn.enclosing_loop_head = insn.immediate_enclosing_loop_head(self)
@@ -367,6 +450,25 @@ one.
                 pass
             pass
         pass
+
+    def _establish_loop_tree(self):
+        if not len(self.branch_navi.bools):
+            return
+
+        for insn in self.branch_navi.bools.values():
+            for up_stream_ip_v in insn.up_streams:
+                if not up_stream_ip_v:
+                    continue
+                up_stream_ip, up_stream_value = up_stream_ip_v
+                up_stream = self._get_insn(up_stream_ip)
+                if up_stream.loop_depth(self) > insn.loop_depth(self):
+                    continue
+                fidx = 0 if up_stream_value else 1
+                assert(up_stream.loop_tree_following[fidx] == None)
+                up_stream.loop_tree_following[fidx] = insn.ip
+                pass
+            pass
+        pass
     pass
 
 class NamespaceTraceMixin(object):
@@ -375,12 +477,24 @@ class NamespaceTraceMixin(object):
             super(NamespaceTraceMixin.InsnMixin, self).__init__(*args, **kws)
             self.assign_locals = ({}, {})
             self.assign_globals = ({}, {})
+
+            self.arg_srcs = []
             pass
 
-        def _current_locals(self):
+        def _current_locals(self, bnav):
+            if isinstance(self, InsnBool):
+                assert(self.ip == bnav.trace_log[-1][0])
+                if not bnav.trace_log[-1][1]:
+                    return self.assign_locals[1]
+                pass
             return self.assign_locals[0]
 
-        def _current_globals(self):
+        def _current_globals(self, bnav):
+            if isinstance(self, InsnBool):
+                assert(self.ip == bnav.trace_log[-1][0])
+                if not bnav.trace_log[-1][1]:
+                    return self.assign_globals[1]
+                pass
             return self.assign_globals[0]
         pass
 
@@ -398,7 +512,7 @@ class NamespaceTraceMixin(object):
         insn = self._get_insn(self.lasti)
 
         lns = frame.f_locals
-        assigns = insn._current_locals()
+        assigns = insn._current_locals(self.branch_navi)
         for k, v in self.saved_locals.items():
             if (k not in lns) or lns[k].ip == v.ip:
                 continue
@@ -412,10 +526,11 @@ class NamespaceTraceMixin(object):
         self.saved_locals = lns.copy()
 
         gns = frame.f_globals
-        assigns = insn._current_globals()
+        assigns = insn._current_globals(self.branch_navi)
         for k, v in self.saved_globals.items():
-            if (k not in lns) or gns[k].ip == v.ip:
+            if (k not in gns) or gns[k].ip == v.ip:
                 continue
+            print(k, gns[k].ip)
             assigns[k] = gns[k].ip
             pass
         for k in gns.keys():
@@ -424,6 +539,40 @@ class NamespaceTraceMixin(object):
                 pass
             pass
         self.saved_globals = gns.copy()
+        pass
+
+    def _collect_src(self, ip, frame):
+        src = set()
+        lns = frame.f_locals
+        for k, v in lns.items():
+            if v.ip == ip:
+                src.add(k)
+                pass
+            pass
+        gns = frame.f_globals
+        for k, v in gns.items():
+            if v.ip == ip:
+                src.add(k)
+                pass
+            pass
+        return src
+
+    def trace_arg_srcs(self, frame, *args, **kws):
+        vars = [arg.ip for arg in args] + \
+            [kws[k].ip for k in sorted(kws.keys())]
+        srcs = [self._collect_src(ip, frame)
+                for ip in vars]
+
+        insn = self._get_insn(self.lasti)
+
+        if not insn.arg_srcs:
+            insn.arg_srcs = srcs
+            return
+
+        assert(len(srcs) == len(insn.arg_srcs))
+        for i, src in enumerate(srcs):
+            insn.arg_srcs[i] = insn.arg_srcs[i] & src
+            pass
         pass
     pass
 
@@ -483,7 +632,7 @@ class InsnIter(InsnBool):
         pass
     pass
 
-class Tracer(EnclosingLoopTracer):
+class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
     def __init__(self):
         super(Tracer, self).__init__()
         self.insns = {}
@@ -657,11 +806,11 @@ class Tracer(EnclosingLoopTracer):
         if len(self.branch_navi.bools) == 0:
             return False
 
-        unvisited = [b for ip, b in self.branch_navi.bools.items()
-                     if b.br[0] < 0 or b.br[1] < 0]
-        if len(unvisited) == 0:
+        to_visit = [b for ip, b in self.branch_navi.bools.items()
+                   if b.br[0] < 0 or b.br[1] < 0]
+        if len(to_visit) == 0:
             return False
-        visiting = unvisited[0]
+        visiting = to_visit[0]
 
         guided_values = [(visiting.ip, visiting.br[0] < 0)]
         while len(visiting.up_streams):
@@ -679,6 +828,70 @@ class Tracer(EnclosingLoopTracer):
                                   guided_values)
 
         return True
+
+    def _plan_guided_loops(self):
+        bools = self.branch_navi.bools
+        if len(bools) == 0:
+            return
+
+        for insn in bools.values():
+            if None in insn.up_streams:
+                root_insn = insn
+                break
+            pass
+        else:
+            raise 'Unknown error - can not find the root of the loop tree'
+
+        guided_values_list = [[(root_insn.ip, True)], [(root_insn.ip, False)]]
+
+        def has_looped_twice():
+            last_ip, last_v = guided_values[-1]
+            last_insn = self._get_insn(last_ip)
+            depth = last_insn.loop_depth(self)
+
+            cnt = 0
+            for ip, v in reversed(guided_values[:-1]):
+                if ip == last_ip:
+                    cnt += 1
+                    if cnt == 2:
+                        return True
+                    continue
+                insn = self._get_insn(ip)
+                if insn.loop_depth(self) <= depth:
+                    break
+                pass
+            return False
+
+        while len(guided_values_list):
+            guided_values = guided_values_list.pop()
+            ip, value = guided_values[-1]
+            insn = self._get_insn(ip)
+            next_ip = insn.loop_tree_following[0 if value else 1]
+
+            if not next_ip:
+                if insn.enclosing_loop_head == -1:
+                    if value != insn.loop_head_branch:
+                        yield guided_values
+                        continue
+                    next_ip = ip
+                    pass
+
+            if not next_ip:
+                next_ip = insn.enclosing_loop_head
+                pass
+
+            if insn.is_loop_head():
+                if has_looped_twice():
+                    if value == insn.loop_head_branch:
+                        continue
+                    continue
+                pass
+
+            guided_values_list.append(guided_values + [(next_ip, True)])
+            guided_values.append((next_ip, False))
+            guided_values_list.append(guided_values)
+            pass
+        return
 
     def _mock_function(self, func):
         '''Wrap a function.
@@ -718,16 +931,31 @@ class Tracer(EnclosingLoopTracer):
         func = self._mock_function(func)
 
         self.lasti = -1
+        self._reset_ns()
         r = func(*args)
         rscout = Scout(self, 1000000, 'return', [r])
 
         while self._plan_guided():
             self.lasti = -1
+            self._reset_ns()
             r = func(*args)
             rscout = Scout(self, 1000000, 'return', [r])
             pass
 
         self._compute_immediate_enclosing_loop()
+
+        self._establish_loop_tree()
+
+        for guided_values in self._plan_guided_loops():
+            self.branch_navi = \
+                BranchNavigatorGuided(self, self.branch_navi.bools,
+                                      guided_values)
+
+            self.lasti = -1
+            self._reset_ns()
+            r = func(*args)
+            rscout = Scout(self, 1000000, 'return', [r])
+            pass
         pass
 
     def debug_show(self):
@@ -745,6 +973,8 @@ class Tracer(EnclosingLoopTracer):
             i += 1
             pass
 
+        sps = lambda: '    ' * self._loop_head_depth(insn.enclosing_loop_head) if hasattr(insn, 'enclosing_loop_head') else ''
+
         for i, insn in enumerate(insns):
             ip = insn.ip
 
@@ -756,24 +986,52 @@ class Tracer(EnclosingLoopTracer):
             elif ip < 0:
                 print('%04d: %s %d %s' % (ip, insn.op, -ip - 1, insn.name))
             elif insn.op == '?':
-                sps = '    ' * self._loop_head_depth(insn.enclosing_loop_head)
-                print('%04d: %s? operands=%s\n        %sTrue:%d False:%d' % (ip, sps, repr(insn.opvs), sps, insn.br[0], insn.br[1]))
+                print('%04d: %s? operands=%s\n        %sTrue:%d False:%d' % (ip, sps(), repr(insn.opvs), sps(), insn.br[0], insn.br[1]))
             elif insn.op == '__next__':
-                sps = '    ' * self._loop_head_depth(insn.enclosing_loop_head)
-                print('%04d: %s__next__ operands=%s\n        %sHasData:%d Stop:%d' % (ip, sps, repr(insn.opvs), sps, insn.br[0], insn.br[1]))
+                print('%04d: %s__next__ operands=%s\n        %sHasData:%d Stop:%d' % (ip, sps(), repr(insn.opvs), sps(), insn.br[0], insn.br[1]))
             else:
-                sps = '    ' * self._loop_head_depth(insn.enclosing_loop_head)
                 if i < len(insns) - 1:
                     next_ip = insns[i + 1].ip
                 else:
                     next_ip = -1
                     pass
                 if next_ip == insn.br[0]:
-                    print('%04d: %s%s operands=%s' % (ip, sps, insn.op, repr(insn.opvs)))
+                    print('%04d: %s%s operands=%s' % (ip, sps(), insn.op, repr(insn.opvs)))
                 else:
-                    print('%04d: %s%s operands=%s\n        %sgoto %d' % (ip, sps, insn.op, repr(insn.opvs), sps, insn.br[0]))
+                    print('%04d: %s%s operands=%s\n        %sgoto %d' % (ip, sps(), insn.op, repr(insn.opvs), sps(), insn.br[0]))
                     pass
                 pass
+
+            if insn.assign_locals[0] and ip >= -1:
+                print('        %slocals-0: %s' % (sps(),
+                                                  ' '.join(['%s=%d' % (k, v)
+                                                            for k, v in insn.assign_locals[0].items()])))
+                pass
+            if insn.assign_locals[1] and ip >= -1:
+                print('        %slocals-1: %s' % (sps(),
+                                                  ' '.join(['%s=%d' % (k, v)
+                                                            for k, v in insn.assign_locals[1].items()])))
+                pass
+            if insn.assign_globals[0] and ip >= -1:
+                print('        %sglobals-0: %s' % (sps(),
+                                                   ' '.join(['%s=%d' % (k, v)
+                                                             for k, v in insn.assign_globals[0].items()])))
+                pass
+            if insn.assign_globals[1] and ip >= -1:
+                print('        %sglobals-1: %s' % (sps(),
+                                                   ' '.join(['%s=%d' % (k, v)
+                                                             for k, v in insn.assign_globals[1].items()])))
+                pass
+
+            if insn.arg_srcs:
+                arg_names = ['op%d=%s' % (i, ','.join(sorted(src)))
+                             for i, src in enumerate(insn.arg_srcs)
+                             if src]
+                if arg_names:
+                    print('        %s%s' % (sps(), ' '.join(arg_names)))
+                    pass
+                pass
+
             i += 1
             pass
         pass
@@ -784,6 +1042,7 @@ def bar(*a, **kws):
 
 def test(a, b):
     # keyword arguments do not work.
+    g = a
     c = a + b + bar(3) + foo
     d = 0
     for i in range(101):
@@ -798,6 +1057,7 @@ def test(a, b):
             d = 2 * c * 2 + 5 / b / a
             pass
         c += 1
+        g += 1
         pass
     return d + c
 
