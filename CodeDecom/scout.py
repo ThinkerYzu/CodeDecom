@@ -1,7 +1,9 @@
 import inspect
 
 class Scout(object):
-    def __init__(self, tracer, ip, op, operands = None):
+    def __init__(self, tracer, ip, op, operands = None, *args, **kws):
+        super(Scout, self).__init__(*args, **kws)
+
         self.tracer = tracer
         self.operands = operands or []
         self.op = op
@@ -262,10 +264,6 @@ class BranchNavigator(object):
             pass
         insn.record_up_stream(up_stream)
 
-        if isinstance(insn, InsnBool):
-            insn.mark_new_enclosing_loop(self)
-            pass
-
         self.trace_log.append((ip, insn.bool_value))
         pass
 
@@ -334,48 +332,134 @@ class EnclosingLoopTracer(object):
     class InsnMixin(object):
         def __init__(self, *args, **kws):
             super(EnclosingLoopTracer.InsnMixin, self).__init__(*args, **kws)
-            self.loop_head_branch = None
+            self.enclosing_loop_head = -1
+            self.parent_loop_head = -1
+
             # All loop heads of enclosing loops
             self.enclosing_loop_heads = set()
-
-            self.loop_tree_following = [None, None]
-            pass
-
-        def immediate_enclosing_loop_head(self, tracer):
-            for h_ip in self.enclosing_loop_heads:
-                head = tracer._get_insn(h_ip)
-                if len(head.enclosing_loop_heads) + 1 == len(self.enclosing_loop_heads):
-                    return h_ip
-                pass
-            return -1
-
-        def mark_new_enclosing_loop(self, bnav):
-            ip = self.ip
-
-            # Handle enclosing loop
-            for i, (ip_, v) in enumerate(reversed(bnav.trace_log)):
-                if ip ==  ip_:
-                    self.loop_head_branch = v
-                    for inner_ip, inner_v in bnav.trace_log[len(bnav.trace_log) - i:]:
-                        inner = bnav.get_insn(inner_ip)
-                        inner.enclosing_loop_heads.add(ip)
-                        pass
-                    pass
-                elif ip_ in self.enclosing_loop_heads:
-                    # Revisit this instruction because the enclosing loop, not this loop.
-                    break
-                pass
             pass
 
         def is_loop_head(self):
-            return self.loop_head_branch != None
+            return self.enclosing_loop_head == self.ip
 
-        def loop_depth(self, tracer):
-            return tracer._loop_head_depth(self.enclosing_loop_head)
+        def is_loop_exit(self):
+            return isinstance(self, InsnBool) and \
+                self.loop_exit_branch != -1
+
+        def loop_depth(self):
+            return len(self.enclosing_loop_heads)
+        pass
+
+    class InsnBoolMixin(object):
+        def __init__(self, *args, **kws):
+            super(EnclosingLoopTracer.InsnBoolMixin, self).__init__(*args, **kws)
+            self.loop_head_branch = None
+            self.loop_exit_branch = -1
+
+            self.bool_following = [None, None]
+            pass
         pass
 
     def __init__(self, *args, **kws):
         super(EnclosingLoopTracer, self).__init__(*args, **kws)
+
+        self.loop_heads = set()
+        self.loop_exits = {}
+        self.trace_log = []
+        pass
+
+    def _reset_loop(self):
+        self.trace_log = []
+        pass
+
+    def is_loop_head(self, ip):
+        return ip in self.loop_heads
+
+    def immediate_enclosing_loop_head(self, insn):
+        for h_ip in insn.enclosing_loop_heads:
+            head = self._get_insn(h_ip)
+            if len(head.enclosing_loop_heads) == len(insn.enclosing_loop_heads):
+                return h_ip
+            pass
+        return -1
+
+    def immediate_2nd_enclosing_loop_head(self, insn):
+        for h_ip in insn.enclosing_loop_heads:
+            head = self._get_insn(h_ip)
+            if len(head.enclosing_loop_heads) + 1 == len(insn.enclosing_loop_heads):
+                return h_ip
+            pass
+        return -1
+
+    def mark_new_enclosing_loop(self, ip):
+        '''Find loops by looking back the trace_log.
+
+        A loop is a set of instructions that their control flows will
+        go back to the entry instructions except some of branch
+        instructions.  Every instruction executed between two times of
+        the excution of the entry instruction of a loop is a part of
+        the loop.  So, all instructions of a loop can be found by the
+        exploration of all branches and recording what is in-between
+        of two executions of the same instruction.
+
+        When the current IP is found in the trace_log already, there
+        is a loop starting from the current location.  Every
+        instructions in the trace_log between the location found the
+        current IP and the tail are part of the loop.
+
+        All instructions in a loop are marked by putting the IP of the
+        loop head (the first instruction) in enclosing_loop_heads.
+
+        An outter loop can make an instruction inside the loop repeats
+        several time in the trace_log.  It can wrongly recognize an
+        instruction inside a loop a loop head.  The solution is to see
+        if the algorithm crosses a loop head of the loop enclosing the
+        current instruction before finding the current IP in
+        trace_log.  That means an IP in the trace_log is in
+        enclosing_loop_heads of the current instruction.
+
+        '''
+        trace_log = self.trace_log
+        insn = self._get_insn(ip)
+        for i , tip in enumerate(reversed(trace_log)):
+            if tip == ip:
+                self.loop_heads.add(ip)
+                for enclosed_ip in trace_log[-i - 1:]:
+                    enclosed_insn = self._get_insn(enclosed_ip)
+                    enclosed_insn.enclosing_loop_heads.add(ip)
+                    pass
+                break
+            if tip in insn.enclosing_loop_heads:
+                break
+            pass
+
+        self.trace_log.append(ip)
+        pass
+
+    def find_loop_exits(self):
+        '''Find exit instructions of loops.
+
+        An exit is a branch instruction that one of it's branches
+        leave the loop while the other branch stay in the loop.
+
+        '''
+        for ip, insn in self.branch_navi.bools.items():
+            depth = insn.loop_depth()
+            for i in range(2):
+                if insn.br[i] >= 0:
+                    br_insn = self._get_insn(insn.br[i])
+                    br_depth = br_insn.loop_depth()
+                    if br_depth < depth:
+                        assert(isinstance(insn, InsnBool))
+                        assert(insn.loop_exit_branch == -1 or insn.loop_exit_branch == i)
+                        insn.loop_exit_branch = i
+                        loop_head = self.immediate_enclosing_loop_head(insn)
+                        self.loop_exits.setdefault(loop_head, set())
+                        self.loop_exits[loop_head].add(ip)
+                        pass
+                    pass
+                pass
+            pass
         pass
 
     def _first_ip(self):
@@ -391,81 +475,95 @@ class EnclosingLoopTracer(object):
         if loop_head_ip == -1:
             return 0
         head = self._get_insn(loop_head_ip)
-        return len(head.enclosing_loop_heads)
-
-    def _compute_IELH_for_bool(self, insn, to_visit):
-        insn.enclosing_loop_head = insn.immediate_enclosing_loop_head(self)
-        if insn.loop_head_branch != None:
-            inner, sibling = insn.br[0], insn.br[1]
-            if not insn.loop_head_branch:
-                inner, sibling = sibling, inner
-                pass
-            to_visit.append((inner, insn.ip))
-            to_visit.append((sibling, insn.immediate_enclosing_loop_head(self)))
-            return
-        to_visit.append((insn.br[0], insn.immediate_enclosing_loop_head(self)))
-        to_visit.append((insn.br[1], insn.immediate_enclosing_loop_head(self)))
-        pass
-
-    def _compute_IELH_for_not_bool(self, insn, to_visit, elh):
-        '''Update enclosing_loop_head of insn if the new elh encloses the old
-one.
-
-        '''
-        if hasattr(insn, 'enclosing_loop_head') and \
-           self._loop_head_depth(insn.enclosing_loop_head) <= self._loop_head_depth(elh):
-            return
-        insn.enclosing_loop_head = elh
-        next_ip = insn.br[0]
-        if next_ip >= 0:
-            to_visit.append((next_ip, elh))
-            pass
-        pass
+        return head.loop_depth()
 
     def _compute_immediate_enclosing_loop(self):
         '''Compute immediate enclosing loop.
 
-        An immediate enclosing loop of an instruction is a loop that
+        An immediate enclosing loop of an instruction is a loop
         enclosing the instruction.  An instruction may be enclosed by
         more than one loop.  The immediate enclosing loop is the most
         inner one.
 
-        A loop is represented by a loop head, an InsnBool.
+        A loop is represented by a loop head, the entry point of the
+        loop.
 
         '''
-        to_visit = [(self._first_ip(), -1)]
-        visited_bools = set()
-        while len(to_visit):
-            ip, enclosing_loop_head = to_visit.pop()
-            if ip in visited_bools:
-                continue
-
-            insn = self._get_insn(ip)
-            if isinstance(insn, InsnBool):
-                visited_bools.add(ip)
-                self._compute_IELH_for_bool(insn, to_visit)
+        for insn in self.insns.values():
+            if isinstance(insn, list):
+                for sub in insn:
+                    sub.enclosing_loop_head = self.immediate_enclosing_loop_head(sub)
+                    sub.parent_loop_head = self.immediate_2nd_enclosing_loop_head(sub)
+                    pass
+                pass
             else:
-                self._compute_IELH_for_not_bool(insn, to_visit,
-                                                enclosing_loop_head)
+                insn.enclosing_loop_head = self.immediate_enclosing_loop_head(insn)
+                insn.parent_loop_head = self.immediate_2nd_enclosing_loop_head(insn)
                 pass
             pass
         pass
 
-    def _establish_loop_tree(self):
-        if not len(self.branch_navi.bools):
-            return
+    def _establish_loop_forward_tree(self):
+        ip = self._first_ip()
+        insn = self._get_insn(ip)
+        works = [(insn, None)]
 
-        for insn in self.branch_navi.bools.values():
-            for up_stream_ip_v in insn.up_streams:
-                if not up_stream_ip_v:
-                    continue
-                up_stream_ip, up_stream_value = up_stream_ip_v
-                up_stream = self._get_insn(up_stream_ip)
-                if up_stream.loop_depth(self) > insn.loop_depth(self):
-                    continue
-                fidx = 0 if up_stream_value else 1
-                assert(up_stream.loop_tree_following[fidx] == None)
-                up_stream.loop_tree_following[fidx] = insn.ip
+        def add_work(next_insn, upstream):
+            if upstream:
+                upstream_insn, branch = upstream
+                if next_insn.ip == upstream_insn.bool_following[branch]:
+                    return
+                pass
+            works.append((next_insn, upstream))
+            pass
+
+        while works:
+            insn, upstream = works.pop()
+
+            if isinstance(insn, InsnBool):
+                if upstream:
+                    upstream_insn, branch = upstream
+                    if upstream_insn.loop_depth() <= insn.loop_depth():
+                        upstream_insn.bool_following[branch] = insn.ip
+                        pass
+                    pass
+                br0_ip = insn.br[0]
+                if br0_ip >= 0:
+                    br0_insn = self._get_insn(br0_ip)
+                    add_work(br0_insn, (insn, 0))
+                    pass
+                br1_ip = insn.br[1]
+                if br1_ip >= 0:
+                    br1_insn = self._get_insn(br1_ip)
+                    add_work(br1_insn, (insn, 1))
+                    pass
+                pass
+            else:
+                br0_ip = insn.br[0]
+                if br0_ip >= 0:
+                    br0_insn = self._get_insn(br0_ip)
+                    add_work(br0_insn, upstream)
+                    pass
+                pass
+            pass
+        pass
+
+    def show_loop_tree(self):
+        ips = list(sorted(self.insns.keys()))
+
+        for ip in ips:
+            if ip < 0:
+                continue
+            if isinstance(self.insns[ip], list):
+                subips = range(ip, ip + len(self.insns[ip]))
+            else:
+                subips = [ip]
+                pass
+            for ip in subips:
+                insn = self._get_insn(ip)
+                depth = self._loop_head_depth(insn.enclosing_loop_head)
+                sps = '    ' * depth
+                print('%s%04d: %s' % (sps, ip, insn.op))
                 pass
             pass
         pass
@@ -576,7 +674,7 @@ class NamespaceTraceMixin(object):
         pass
     pass
 
-class Insn(NamespaceTraceMixin.InsnMixin):
+class Insn(NamespaceTraceMixin.InsnMixin, EnclosingLoopTracer.InsnMixin):
     def __init__(self, ip, op):
         super(Insn, self).__init__()
         self.ip = ip
@@ -591,7 +689,7 @@ class Insn(NamespaceTraceMixin.InsnMixin):
         pass
     pass
 
-class InsnBool(Insn, EnclosingLoopTracer.InsnMixin):
+class InsnBool(Insn, EnclosingLoopTracer.InsnBoolMixin):
     def __init__(self, ip, op = '?'):
         super(InsnBool, self).__init__(ip, op)
 
@@ -630,6 +728,26 @@ class InsnIter(InsnBool):
     def __init__(self, ip, op = '__next__'):
         super(InsnIter, self).__init__(ip, op)
         pass
+    pass
+
+class CDBaseException(Scout, BaseException):
+    def __init__(self, *args, **kws):
+        super(CDBaseException, self).__init__(*args, **kws)
+        pass
+    pass
+
+class CDBaseExceptionConstruct(Scout):
+    def __init__(self, *args, **kws):
+        super(CDBaseExceptionConstruct, self).__init__(*args, **kws)
+        pass
+
+    def __call__(self, *args, **kws):
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
+        scout = CDBaseException(self.tracer, ip, 'call', [self, args, kws])
+        self.tracer.trace_arg_srcs(frame, self, *args, **kws)
+        return scout
     pass
 
 class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
@@ -767,6 +885,8 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
             self._put_insn(insn)
             pass
 
+        self.mark_new_enclosing_loop(ip)
+
         insn = self._get_insn(ip)
         assert(insn.op == scout.op)
         v = conv_operands_scout_to_insn(scout)
@@ -806,48 +926,79 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
         if len(self.branch_navi.bools) == 0:
             return False
 
-        to_visit = [b for ip, b in self.branch_navi.bools.items()
-                   if b.br[0] < 0 or b.br[1] < 0]
-        if len(to_visit) == 0:
+        dark_branches = \
+            [(ip, b.br[0] < 0) for ip, b in self.branch_navi.bools.items()
+             if b.br[0] < 0 or b.br[1] < 0]
+        if len(dark_branches) == 0:
             return False
-        visiting = to_visit[0]
 
-        guided_values = [(visiting.ip, visiting.br[0] < 0)]
-        while len(visiting.up_streams):
-            if None in visiting.up_streams:
-                # The function entry can reach this branch.  It stops
-                # here to let the function reach here from the entry.
-                break
-            ustream_ip, ustream_v = list(visiting.up_streams)[0]
-            guided_values.append((ustream_ip, ustream_v))
-            visiting = self._get_insn(ustream_ip)
+        # BFS for a path to the entry point
+        guided_values_list = [[dark_branches[0]]]
+        while len(guided_values_list):
+            guided_values_list_next = []
+            for guided_values in guided_values_list:
+                visiting_ip, visiting_value = guided_values[-1]
+                visiting = self._get_insn(visiting_ip)
+                if None in visiting.up_streams:
+                    guided_values.reverse()
+                    self.branch_navi = \
+                        BranchNavigatorGuided(self, self.branch_navi.bools,
+                                              guided_values)
+                    return True
+
+                for upstream in visiting.up_streams:
+                    guided_values_list_next.append(guided_values + [upstream])
+                    pass
+                pass
+            guided_values_list = guided_values_list_next
             pass
 
-        self.branch_navi = \
-            BranchNavigatorGuided(self, self.branch_navi.bools,
-                                  guided_values)
+        return False
 
-        return True
+    def _root_insn(self):
+        bools = self.branch_navi.bools
+        for insn in bools.values():
+            if None in insn.up_streams:
+                root_insn = insn
+                return root_insn
+            pass
+        return None
 
     def _plan_guided_loops(self):
         bools = self.branch_navi.bools
         if len(bools) == 0:
             return
 
-        for insn in bools.values():
-            if None in insn.up_streams:
-                root_insn = insn
-                break
-            pass
-        else:
+        root_insn = self._root_insn()
+        if not root_insn:
             raise 'Unknown error - can not find the root of the loop tree'
 
         guided_values_list = [[(root_insn.ip, True)], [(root_insn.ip, False)]]
 
         def has_looped_twice():
+            '''Check if a loop has run at least two consecutive rounds.
+
+            Looping twice is actually visiting an exit Insn 3 times.
+            However, guided_values doesn't include the last time.  We
+            look for 2 times only.
+
+            Every round will visit an exit Insn once.  However, first
+            time visit an exit Insn should be skipped since the rest
+            code, the instructions after it, is still not run yet.  It
+            doesn't complete the loop if exit the loop at the point.
+            The purpose here is to find out all flows of values of
+            variables.  Completion of loops is critical.
+
+            In a loop, it may has more than one exit Insn.  When the
+            first exit Insn encounted appears in the guided_values
+            twice or more, the loop already complete two complete
+            iterations.  Keeping visiting other exit Insn twice, not
+            including the first time, is not necessary.
+
+            '''
             last_ip, last_v = guided_values[-1]
             last_insn = self._get_insn(last_ip)
-            depth = last_insn.loop_depth(self)
+            depth = last_insn.loop_depth()
 
             cnt = 0
             for ip, v in reversed(guided_values[:-1]):
@@ -857,7 +1008,7 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
                         return True
                     continue
                 insn = self._get_insn(ip)
-                if insn.loop_depth(self) <= depth:
+                if insn.loop_depth() < depth:
                     break
                 pass
             return False
@@ -866,25 +1017,18 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
             guided_values = guided_values_list.pop()
             ip, value = guided_values[-1]
             insn = self._get_insn(ip)
-            next_ip = insn.loop_tree_following[0 if value else 1]
+            next_ip = insn.bool_following[0 if value else 1]
 
-            if not next_ip:
-                if insn.enclosing_loop_head == -1:
-                    if value != insn.loop_head_branch:
-                        yield guided_values
-                        continue
-                    next_ip = ip
-                    pass
+            if next_ip == None:
+                yield guided_values
+                continue
 
-            if not next_ip:
-                next_ip = insn.enclosing_loop_head
-                pass
-
-            if insn.is_loop_head():
+            if insn.is_loop_exit():
                 if has_looped_twice():
-                    if value == insn.loop_head_branch:
+                    exit_value = not insn.loop_exit_branch
+                    if value != exit_value:
                         continue
-                    continue
+                    pass
                 pass
 
             guided_values_list.append(guided_values + [(next_ip, True)])
@@ -909,7 +1053,11 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
         '''
         glob = {}
         for i, vname in enumerate(func.__code__.co_names):
-            scout = Scout(self, -2000000 - i, 'global', [])
+            if vname == 'BaseException':
+                scout = CDBaseExceptionConstruct(self, -2000000 - i, 'global', [])
+            else:
+                scout = Scout(self, -2000000 - i, 'global', [])
+                pass
             self._get_insn(scout.ip).name = vname
             glob[vname] = scout
             pass
@@ -932,19 +1080,23 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
 
         self.lasti = -1
         self._reset_ns()
+        self._reset_loop()
         r = func(*args)
         rscout = Scout(self, 1000000, 'return', [r])
 
         while self._plan_guided():
             self.lasti = -1
             self._reset_ns()
+            self._reset_loop()
             r = func(*args)
             rscout = Scout(self, 1000000, 'return', [r])
             pass
 
         self._compute_immediate_enclosing_loop()
 
-        self._establish_loop_tree()
+        self._establish_loop_forward_tree()
+
+        self.find_loop_exits()
 
         for guided_values in self._plan_guided_loops():
             self.branch_navi = \
@@ -953,6 +1105,7 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
 
             self.lasti = -1
             self._reset_ns()
+            self._reset_loop()
             r = func(*args)
             rscout = Scout(self, 1000000, 'return', [r])
             pass
@@ -973,7 +1126,7 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
             i += 1
             pass
 
-        sps = lambda: '    ' * self._loop_head_depth(insn.enclosing_loop_head) if hasattr(insn, 'enclosing_loop_head') else ''
+        sps = lambda: '    ' * self._loop_head_depth(insn.enclosing_loop_head)
 
         for i, insn in enumerate(insns):
             ip = insn.ip
@@ -1061,6 +1214,8 @@ def test(a, b):
         pass
     return d + c
 
-tracer = Tracer()
-tracer.trace(test)
-tracer.debug_show()
+if __name__ == '__main__':
+    tracer = Tracer()
+    tracer.trace(test)
+    tracer.debug_show()
+    pass
