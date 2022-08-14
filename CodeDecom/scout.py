@@ -211,6 +211,22 @@ class Scout(object):
         scout = ScoutIter(self.tracer, ip, '__iter__', [self])
         self.tracer.trace_arg_srcs(frame, self)
         return scout
+
+    def __enter__(self):
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
+        scout = ScoutIter(self.tracer, ip, '__enter__', [self])
+        self.tracer.trace_arg_srcs(frame, self)
+        return scout
+
+    def __exit__(self, exc_type, exc_value, tb):
+        frame = inspect.stack()[1].frame
+        self.tracer.trace_namespace(frame)
+        ip = frame.f_lasti
+        scout = ScoutIter(self.tracer, ip, '__exit__', [self, exc_type, exc_value])
+        self.tracer.trace_arg_srcs(frame, self)
+        return scout
     pass
 
 # Convert operands in the format of Scout to the format of Insn.
@@ -759,6 +775,7 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
         self.branch_navi = BranchNavigator(self)
         self.consts = {}
         self.ip_consts = {}
+        self.extra_globs = {}
         pass
 
     def _get_insn(self, ip):
@@ -778,6 +795,10 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
             assert(ip % 10 == 0)
             pass
         return insn
+
+    def reg_global(self, name, value):
+        self.extra_globs[name] = value
+        pass
 
     # Convert IP of a Scout to the IP of sub-instructions.
     #
@@ -1063,6 +1084,7 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
             pass
 
         c = func.__code__
+        print(c.co_consts)
         scout_consts = tuple([self.get_const_scout(const)
                               for const in c.co_consts])
         code = c.replace(co_consts = scout_consts)
