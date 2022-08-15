@@ -216,7 +216,7 @@ class Scout(object):
         frame = inspect.stack()[1].frame
         self.tracer.trace_namespace(frame)
         ip = frame.f_lasti
-        scout = ScoutIter(self.tracer, ip, '__enter__', [self])
+        scout = Scout(self.tracer, ip, '__enter__', [self])
         self.tracer.trace_arg_srcs(frame, self)
         return scout
 
@@ -224,7 +224,7 @@ class Scout(object):
         frame = inspect.stack()[1].frame
         self.tracer.trace_namespace(frame)
         ip = frame.f_lasti
-        scout = ScoutIter(self.tracer, ip, '__exit__', [self, exc_type, exc_value])
+        scout = Scout(self.tracer, ip, '__exit__', [self, exc_type, exc_value])
         self.tracer.trace_arg_srcs(frame, self)
         return scout
     pass
@@ -697,6 +697,7 @@ class Insn(NamespaceTraceMixin.InsnMixin, EnclosingLoopTracer.InsnMixin):
         self.op = op
         self.opvs = set()
         self.br = [-1, -1]
+        self.tags = set()
         pass
 
     def jump_to(self, ip):
@@ -976,12 +977,12 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
 
         return False
 
-    def _root_insn(self):
+    def _root_bool(self):
         bools = self.branch_navi.bools
         for insn in bools.values():
             if None in insn.up_streams:
-                root_insn = insn
-                return root_insn
+                root_bool = insn
+                return root_bool
             pass
         return None
 
@@ -990,7 +991,7 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
         if len(bools) == 0:
             return
 
-        root_insn = self._root_insn()
+        root_insn = self._root_bool()
         if not root_insn:
             raise 'Unknown error - can not find the root of the loop tree'
 
@@ -1076,6 +1077,8 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
         for i, vname in enumerate(func.__code__.co_names):
             if vname == 'BaseException':
                 scout = CDBaseExceptionConstruct(self, -2000000 - i, 'global', [])
+            elif vname in self.extra_globs:
+                scout = self.extra_globs[vname](self, -2000000 - i, 'global:' + vname, [])
             else:
                 scout = Scout(self, -2000000 - i, 'global', [])
                 pass
@@ -1084,7 +1087,6 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
             pass
 
         c = func.__code__
-        print(c.co_consts)
         scout_consts = tuple([self.get_const_scout(const)
                               for const in c.co_consts])
         code = c.replace(co_consts = scout_consts)
@@ -1130,6 +1132,39 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
             self._reset_loop()
             r = func(*args)
             rscout = Scout(self, 1000000, 'return', [r])
+            pass
+        pass
+
+    def root_ip(self):
+        return min([x for x in self.insns.keys() if x >= 0])
+
+    def last_ip(self):
+        return 10000000
+
+    def paths_between(self, from_ip, end_ip):
+        paths = [[from_ip]]
+        while len(paths):
+            path = paths.pop()
+            last_ip = path[-1]
+
+            assert(last_ip >= 0)
+
+            if last_ip == end_ip:
+                yield path
+                continue
+
+            last_insn = self._get_insn(last_ip)
+            if isinstance(last_insn, InsnBool):
+                if path.count(last_ip) > 3:
+                    continue
+
+                paths.append(path + [last_insn.br[0]])
+                path.append(last_insn.br[1])
+                paths.append(path)
+                continue
+
+            path.append(last_insn.br[0])
+            paths.append(path)
             pass
         pass
 
@@ -1205,6 +1240,10 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
                 if arg_names:
                     print('        %s%s' % (sps(), ' '.join(arg_names)))
                     pass
+                pass
+
+            if insn.tags:
+                print('        %stags: %s' % (sps(), insn.tags))
                 pass
 
             i += 1
