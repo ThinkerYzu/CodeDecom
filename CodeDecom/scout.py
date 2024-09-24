@@ -440,10 +440,16 @@ class EnclosingLoopTracer(object):
         for i , tip in enumerate(reversed(trace_log)):
             if tip == ip:
                 self.loop_heads.add(ip)
+                boolcnt = 0
                 for enclosed_ip in trace_log[-i - 1:]:
                     enclosed_insn = self._get_insn(enclosed_ip)
+                    if isinstance(enclosed_insn, InsnBool):
+                        boolcnt = boolcnt + 1
+                        pass
                     enclosed_insn.enclosing_loop_heads.add(ip)
                     pass
+                if boolcnt == 0:
+                    raise "Infinite loop"
                 break
             if tip in insn.enclosing_loop_heads:
                 break
