@@ -832,7 +832,6 @@ class Tracer(EnclosingLoopTracer, NamespaceTraceMixin):
         super(Tracer, self).__init__()
         self.insns = {}
         self.lasti = -1
-        self.op = ''
         self.branch_navi = BranchNavigator(self)
         self.consts = {}
         self.ip_consts = {}
